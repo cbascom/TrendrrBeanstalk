@@ -208,6 +208,7 @@ public class BeanstalkClient {
             throw x;
         }
     }
+
     /**
      * Puts a task into the currently used queue (see {@link #useTube(String)}.
      * @param priority The job priority, from 0 to 2^32. Most urgent = 0, least urgent = 4294967295.
@@ -278,6 +279,51 @@ public class BeanstalkClient {
         } catch (BeanstalkDisconnectedException x) {
             this.reap = true; //reap that shit..
             throw x;
+        }
+    }
+
+    public BeanstalkJob peekReady() throws BeanstalkException{
+        try {
+            this.init();
+            String command = "peek-ready\r\n";
+
+            log.debug(this);
+            log.debug(command);
+            con.write(command);
+            String line = con.readControlResponse();
+            log.debug(line);
+
+            if (line.startsWith("NOT_FOUND")) {
+                return null;
+            }
+
+            if (!line.startsWith("FOUND")) {
+                throw new BeanstalkException(line);
+            }
+
+            String[] tmp = line.split("\\s+");
+            long id = Long.parseLong(tmp[1]);
+
+            int numBytes = Integer.parseInt(tmp[2]);
+
+            log.debug("ID: " + id);
+            log.debug("numbytes: " + numBytes);
+
+            byte[] bytes = con.readBytes(numBytes);
+
+            BeanstalkJob job = new BeanstalkJob();
+            job.setData(bytes);
+            job.setId(id);
+            job.setClient(this);
+            return job;
+
+        } catch (BeanstalkDisconnectedException x) {
+            this.reap = true; //reap that shit..
+            throw x;
+        } catch (BeanstalkException x) {
+            throw x;
+        } catch (Exception x) {
+            throw new BeanstalkException(x);
         }
     }
 
